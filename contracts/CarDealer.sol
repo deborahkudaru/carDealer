@@ -4,12 +4,13 @@ pragma solidity ^0.8.28;
 // Uncomment this line to use console.log
 // import "hardhat/console.sol";
 
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 import "./lib/Events.sol";
 import "./lib/Errors.sol";
 
-contract CarDealer is ERC721URIStorage {
+contract CarDealer is ERC721, Ownable {
     struct Car {
         uint256 id;
         string model;
@@ -26,14 +27,18 @@ contract CarDealer is ERC721URIStorage {
     mapping(uint256 => address[]) public carHistory;
     mapping(address => uint256[]) private userCars;
     uint256[] private listedCars;
+    string private baseURI;
 
-    constructor() ERC721("CarNFT", "GLK") {}
+    constructor(
+        string memory _baseURI
+    ) ERC721("CarNFT", "GLK") Ownable(msg.sender) {
+        baseURI = _baseURI;
+    }
 
     function registerCar(
         string memory _model,
         string memory _color,
-        uint256 _price,
-        string memory _tokenURI
+        uint256 _price
     ) external {
         uint256 carId = nextCarID++;
         cars[carId] = Car({
@@ -51,8 +56,27 @@ contract CarDealer is ERC721URIStorage {
         listedCars.push(carId);
 
         _mint(msg.sender, carId);
-        _setTokenURI(carId, _tokenURI);
         emit Events.CarRegistered(carId, msg.sender);
+    }
+
+    function tokenURI(
+        uint256 tokenId
+    ) public view override returns (string memory) {
+        _requireOwned(tokenId);
+
+        return bytes(baseURI).length > 0 ? string.concat(baseURI) : "";
+    }
+
+    function setBaseURI(string memory _newBaseURI) public onlyOwner {
+        baseURI = _newBaseURI;
+    }
+
+    function exists(uint256 tokenId) public view returns (bool) {
+        try this.ownerOf(tokenId) {
+            return true;
+        } catch {
+            return false;
+        }
     }
 
     function forSale(uint256 _carId, uint256 _price) external {
